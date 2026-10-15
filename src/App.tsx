@@ -8,6 +8,7 @@ import { chapter11Content, chapter12Content, chapter13Content, chapter14Content 
 import { chapter15Content, chapter16Content, chapter17Content, chapter18Content } from './content/chapters15-18';
 import { prefaceContent } from './content/preface';
 import { caseStudies, additionalContent } from './content/supplementary';
+import { exportCurrentChapter, exportEntireTextbook } from './utils/exportUtils';
 
 // Content map (0 = preface, 1-18 = chapters, 19 = case studies, 20 = appendices)
 const contentMap: Record<number, string> = {
@@ -794,6 +795,8 @@ const App: React.FC = () => {
   const [activeChapter, setActiveChapter] = useState<number>(0); // 0 = cover page
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [showTOC, setShowTOC] = useState<boolean>(false);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -801,6 +804,37 @@ const App: React.FC = () => {
       contentRef.current.scrollTop = 0;
     }
   }, [activeChapter]);
+
+  // Export handlers
+  const handleExportChapter = async (format: 'pdf' | 'docx') => {
+    const chapterTitle = activeChapter === 0 ? 'Preface' : 
+                         activeChapter === 19 ? 'Case_Studies' :
+                         activeChapter === 20 ? 'Appendices' :
+                         `Chapter_${activeChapter}_${currentChapter?.title || ''}`;
+    const content = contentMap[activeChapter] || '';
+    
+    setExportLoading(format);
+    try {
+      await exportCurrentChapter(chapterTitle, content, format);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
+  const handleExportAll = async (format: 'pdf' | 'docx') => {
+    setExportLoading(`all-${format}`);
+    try {
+      await exportEntireTextbook(contentMap, chapters, format);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExportLoading(null);
+    }
+  };
 
   // Show cover page
   if (activeChapter === 0) {
@@ -965,6 +999,17 @@ const App: React.FC = () => {
             >
               Next →
             </button>
+            <div className="border-l border-gray-300 h-6 mx-2"></div>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1.5"
+              title="Export chapter or entire textbook"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export
+            </button>
           </div>
         </header>
 
@@ -1043,6 +1088,171 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden" onClick={() => setShowTOC(false)}>
           <div className="w-80 h-full bg-blue-950 overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Same sidebar content for mobile */}
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowExportModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-gray-900">Export Textbook</h3>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">Choose format and scope for export</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Current Chapter Export */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Current Chapter</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Export: {activeChapter === 0 ? 'Preface & Course Syllabus' : 
+                           activeChapter === 19 ? 'Case Studies' :
+                           activeChapter === 20 ? 'Appendices & Resources' :
+                           `Chapter ${activeChapter}: ${currentChapter?.title}`}
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => handleExportChapter('pdf')}
+                    disabled={exportLoading !== null}
+                    className="px-3 py-3 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    {exportLoading === 'pdf' ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs">Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                        </svg>
+                        <span className="text-xs font-medium">PDF</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleExportChapter('docx')}
+                    disabled={exportLoading !== null}
+                    className="px-3 py-3 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    {exportLoading === 'docx' ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs">Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 2A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8L14 2H6M13 3.5L18.5 9H13V3.5M9.88 13.39L11.29 19H9.74L9.18 16.07Q9.15 15.91 8.92 14.64Q8.9 14.5 8.88 14.5L8.36 17.43L7.18 13.39H8.36L8.84 16.07Q8.86 16.21 8.93 16.63Q9 17.05 9.03 17.21L9.5 14.63L10.59 19H9.14L10.56 13.39H9.88M14.96 19H13.22V13.39H14.96Q16.88 13.4 16.88 16.21Q16.88 19 14.96 19M14.96 14.5H14.73V17.91H14.96Q15.5 17.91 15.5 16.21Q15.5 14.5 14.96 14.5Z" />
+                        </svg>
+                        <span className="text-xs font-medium">DOCX</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowExportModal(false); window.print(); }}
+                    className="px-3 py-3 bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18,3H6V7H18M19,12A1,1 0 0,1 18,11A1,1 0 0,1 19,10A1,1 0 0,1 20,11A1,1 0 0,1 19,12M16,19H8V14H16M19,8H5A3,3 0 0,0 2,11V17H6V21H18V17H22V11A3,3 0 0,0 19,8Z" />
+                    </svg>
+                    <span className="text-xs font-medium">Print</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
+
+              {/* Full Textbook Export */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-3">Complete Textbook</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Export all 18 chapters plus supplementary materials
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => handleExportAll('pdf')}
+                    disabled={exportLoading !== null}
+                    className="px-3 py-3 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    {exportLoading === 'all-pdf' ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs">Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                        </svg>
+                        <span className="text-xs font-medium">Full PDF</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleExportAll('docx')}
+                    disabled={exportLoading !== null}
+                    className="px-3 py-3 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    {exportLoading === 'all-docx' ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs">Generating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 2A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8L14 2H6M13 3.5L18.5 9H13V3.5M9.88 13.39L11.29 19H9.74L9.18 16.07Q9.15 15.91 8.92 14.64Q8.9 14.5 8.88 14.5L8.36 17.43L7.18 13.39H8.36L8.84 16.07Q8.86 16.21 8.93 16.63Q9 17.05 9.03 17.21L9.5 14.63L10.59 19H9.14L10.56 13.39H9.88M14.96 19H13.22V13.39H14.96Q16.88 13.4 16.88 16.21Q16.88 19 14.96 19M14.96 14.5H14.73V17.91H14.96Q15.5 17.91 15.5 16.21Q15.5 14.5 14.96 14.5Z" />
+                        </svg>
+                        <span className="text-xs font-medium">Full DOCX</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowExportModal(false); window.print(); }}
+                    className="px-3 py-3 bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition-colors flex flex-col items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18,3H6V7H18M19,12A1,1 0 0,1 18,11A1,1 0 0,1 19,10A1,1 0 0,1 20,11A1,1 0 0,1 19,12M16,19H8V14H16M19,8H5A3,3 0 0,0 2,11V17H6V21H18V17H22V11A3,3 0 0,0 19,8Z" />
+                    </svg>
+                    <span className="text-xs font-medium">Print All</span>
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  Note: Full textbook export may take a moment to generate
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
+              <p className="text-xs text-gray-500 text-center">
+                Exports include all content, diagrams, and formatting
+              </p>
+            </div>
           </div>
         </div>
       )}
